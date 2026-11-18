@@ -1,0 +1,12 @@
+# Local previews and generated scratch files
+tmp/
+outputs/
+site-source/
+
+# Local Sites deployment identity
+.openai/
+
+# Common editor and OS artifacts
+.DS_Store
+Thumbs.db
+*.log

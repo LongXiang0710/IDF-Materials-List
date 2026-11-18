@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#162a25">
+  <title>IDF 材料表助手</title>
+  <meta name="description" content="本地解析 ISOGEN IDF 文件，预览并导出管道材料表。">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="IDF 材料表助手首页">
+      <span class="brand-mark" aria-hidden="true">I</span>
+      <span><b>IDF 材料表</b><small>ISOGEN MATERIAL TAKEOFF</small></span>
+    </a>
+    <div class="top-actions">
+      <span class="privacy"><i></i> 全程本地处理</span>
+      <button class="ghost-button" id="helpButton" type="button">使用说明</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="uploadSection">
+      <div class="hero-copy">
+        <span class="eyebrow">ISOGEN IDF · MATERIAL TAKEOFF</span>
+        <h1>把复杂的管道数据，<br><em>变成清楚的材料表。</em></h1>
+        <p>拖入一个或多个 IDF 文件，自动关联物料编码与描述，计算管段长度并按规格、管线汇总。无需上传，工程数据始终留在你的电脑中。</p>
+      </div>
+
+      <div class="drop-card" id="dropZone" tabindex="0" role="button" aria-label="选择或拖入 IDF 文件">
+        <input id="fileInput" type="file" accept=".idf,.txt,.dat" multiple hidden>
+        <div class="file-icon" aria-hidden="true"><span>IDF</span></div>
+        <h2>拖入一个或多个 IDF 文件</h2>
+        <p>或点击选择文件，可一次多选</p>
+        <button class="primary-button" id="chooseButton" type="button">选择 IDF 文件</button>
+        <div class="drop-meta"><span>支持 .idf / .txt / .dat</span><span>支持多选 · 建议单文件 ≤ 50 MB</span></div>
+      </div>
+    </section>
+
+    <section class="workspace is-hidden" id="workspace" aria-live="polite">
+      <div class="file-strip">
+        <div class="file-summary">
+          <div class="mini-file-icon">IDF</div>
+          <div><strong id="fileName">—</strong><span id="fileMeta">—</span></div>
+        </div>
+        <div class="file-actions">
+          <label class="encoding-label">编码
+            <select id="encodingSelect" title="文件编码">
+              <option value="auto">自动识别</option>
+              <option value="utf-8">UTF-8</option>
+              <option value="gb18030">GB18030 / GBK</option>
+            </select>
+          </label>
+          <button class="ghost-button" id="replaceButton" type="button">更换文件</button>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <article class="stat-card accent"><span>材料项</span><strong id="statMaterials">0</strong><small>汇总后行数</small></article>
+        <article class="stat-card"><span>组件记录</span><strong id="statComponents">0</strong><small id="statIncluded">0 项进入 BOM</small></article>
+        <article class="stat-card"><span>管道总长</span><strong id="statPipeLength">0.000 m</strong><small>按坐标计算</small></article>
+        <article class="stat-card"><span>总重量</span><strong id="statWeight">—</strong><small>来自 IDF 字段 10</small></article>
+      </div>
+
+      <div class="notice is-hidden" id="notice" role="status"></div>
+
+      <section class="table-card">
+        <div class="table-toolbar">
+          <div>
+            <span class="section-kicker">MATERIAL SCHEDULE</span>
+            <h2>材料汇总</h2>
+          </div>
+          <div class="toolbar-actions">
+            <label class="search-box"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="搜索编码、描述、规格"></label>
+            <select id="categoryFilter" aria-label="材料分类"><option value="">全部分类</option></select>
+            <label class="export-mode is-hidden" id="exportModeWrap">Excel 导出方式
+              <select id="exportModeSelect" aria-label="Excel 导出方式">
+                <option value="merged">合并为一个 Excel</option>
+                <option value="separate">每个 IDF 分别导出</option>
+              </select>
+            </label>
+            <button class="secondary-button" id="csvButton" type="button">导出 CSV</button>
+            <button class="primary-button compact" id="excelButton" type="button">导出 Excel</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>序号</th><th>组件类型</th><th>规格/NS</th><th>物料编码</th><th>材料描述</th><th>数量</th><th>单位</th><th>重量</th><th>归属</th><th>SKEY</th><th>管线号</th>
+            </tr></thead>
+            <tbody id="materialBody"></tbody>
+          </table>
+          <div class="empty-state is-hidden" id="emptyState">没有符合条件的材料项</div>
+        </div>
+        <div class="table-footer"><span id="rowCount">共 0 条</span><span>长度与重量保留 3 位小数</span></div>
+      </section>
+
+      <details class="diagnostics" id="diagnostics">
+        <summary>解析详情与未关联记录 <span id="diagnosticCount">0</span></summary>
+        <div id="diagnosticContent"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer><span>依据 Alias ISOGEN IDF 2005 组件结构解析</span><span>数据不会离开此浏览器</span></footer>
+
+  <dialog id="helpDialog">
+    <div class="dialog-head"><div><span class="section-kicker">QUICK GUIDE</span><h2>使用说明</h2></div><button id="closeHelp" type="button" aria-label="关闭">×</button></div>
+    <ol>
+      <li><b>导入文件</b><span>选择一个或多个 ISOGEN 生成的 .idf、.txt 或 .dat 文件；多文件会自动合并汇总。</span></li>
+      <li><b>检查结果</b><span>工具会将组件字段 9 与文件中的 -20 / -21 物料字典关联，并按规格汇总。</span></li>
+      <li><b>导出表格</b><span>多文件可合并为一个 Excel，也可为每个 IDF 分别生成 Excel；CSV 用于导入其他系统。</span></li>
+    </ol>
+    <div class="guide-note">管道（100–103）按起终点坐标计算长度；管件会根据起终点坐标及相连组件规格自动识别异径，并显示为 DN大径×小径。物料指针为 0 时不进入材料表；字段 11 的 Millions 位为 0 或 2 时计入，值为 1 时排除；管线号读取自 -6 记录。</div>
+  </dialog>
+
+  <script src="skey-data.js"></script>
+  <script src="parser.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
