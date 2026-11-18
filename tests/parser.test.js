@@ -52,7 +52,16 @@ const skeyCases = {
   IDFL: [90, '法兰仪表盘'],
   ELBW: [35, '对焊弯头'],
   FLSW: [105, '承插焊法兰'],
-  FPPL: [101, '定长管']
+  FPPL: [101, '定长管'],
+  SKSW: [40, '承插焊支管台'],
+  WTBW: [40, '对焊支管台'],
+  SWBW: [40, '对焊支管台'],
+  LABW: [40, '对焊支管台'],
+  HCSW: [40, '承插焊支管台'],
+  NZWS: [31, '管嘴'],
+  CLVR: [113, '卡箍'],
+  LNSW: [113, '承插焊接头'],
+  LVBW: [95, 'Victaulic 焊接环']
 };
 Object.entries(skeyCases).forEach(([skey, [type, expected]]) => {
   assert.equal(parser.resolveSkey(skey, type).name, expected, `SKEY ${skey}`);
@@ -71,17 +80,47 @@ const pipelineResult = parser.parse(`
 -21 PIPE DESCRIPTION
 999
 `);
-assert.equal(pipelineResult.rows.length, 2, '相同物料在不同管线中必须分别汇总');
-assert.deepEqual(pipelineResult.rows.map(row => row.pipelineNumber).sort(), ['LINE-100-A', 'LINE-200']);
+assert.equal(pipelineResult.rows.length, 2, '每个管线号的材料必须单独统计');
+assert.equal(pipelineResult.rows.find(row => row.pipelineNumber === 'LINE-100-A').quantity, 0.1);
+assert.equal(pipelineResult.rows.find(row => row.pipelineNumber === 'LINE-200').quantity, 0.2);
 
 const mergedResult = parser.mergeParsedResults([
   { name: 'A.idf', parsed: pipelineResult },
   { name: 'B.idf', parsed: pipelineResult }
 ]);
-assert.equal(mergedResult.rows.length, 2, '多文件中相同管线和物料应合并');
+assert.equal(mergedResult.rows.length, 2, '多文件中相同管线号、SKEY、规格和材料才允许合并');
 assert.equal(mergedResult.stats.componentCount, 4);
 assert.equal(mergedResult.rows.find(row => row.pipelineNumber === 'LINE-100-A').quantity, 0.2);
-assert.deepEqual(mergedResult.rows[0].sourceFiles, ['A.idf', 'B.idf']);
+assert.equal(mergedResult.rows.find(row => row.pipelineNumber === 'LINE-200').quantity, 0.4);
+assert.ok(mergedResult.rows.every(row => row.sourceFiles.join(',') === 'A.idf,B.idf'));
+
+const materialGroupingResult = parser.parse(`
+-6 GROUPING-TEST
+35 0 0 0 10000 0 0 200 1 1 2000000 ELSW 0 1
+35 20000 0 0 30000 0 0 200 1 1 2000000 ELBW 0 2
+35 40000 0 0 50000 0 0 100 1 1 2000000 ELSW 0 1
+35 60000 0 0 70000 0 0 200 2 1 2000000 ELSW 0 1
+35 80000 0 0 90000 0 0 200 3 1 2000000 ELSW 0 1
+35 100000 0 0 110000 0 0 200 4 1 2000000 ELSW 0 1
+-20 SAME-CODE
+-21 SAME DESCRIPTION
+-20 SAME-CODE
+-21 SAME DESCRIPTION
+-20 SAME-CODE
+-21 DIFFERENT DESCRIPTION
+-20 DIFFERENT-CODE
+-21 SAME DESCRIPTION
+999
+`);
+assert.equal(materialGroupingResult.rows.length, 5, '编码、描述、规格、单位、SKEY 和管线号全部相同才允许合并');
+const groupedSameMaterial = materialGroupingResult.rows.find(row => row.code === 'SAME-CODE' && row.description === 'SAME DESCRIPTION' && row.bore === 'DN200' && row.skey === 'ELSW');
+assert.ok(groupedSameMaterial, '应找到相同规格、相同材料、相同 SKEY 的合并行');
+assert.equal(groupedSameMaterial.quantity, 2, '相同 SKEY 和管线号的相同材料应累计数量');
+assert.equal(groupedSameMaterial.classification, '制作');
+assert.equal(materialGroupingResult.rows.find(row => row.skey === 'ELBW').quantity, 1, '不同 SKEY 必须拆成新材料行');
+assert.ok(materialGroupingResult.rows.some(row => row.code === 'SAME-CODE' && row.description === 'SAME DESCRIPTION' && row.bore === 'DN100'), '不同规格必须拆行');
+assert.ok(materialGroupingResult.rows.some(row => row.code === 'SAME-CODE' && row.description === 'DIFFERENT DESCRIPTION'), '不同描述必须拆行');
+assert.ok(materialGroupingResult.rows.some(row => row.code === 'DIFFERENT-CODE'), '不同物料编码必须拆行');
 
 const strictBomResult = parser.parse(`
 -6 FILTER-TEST
@@ -129,5 +168,33 @@ assert.equal(elbowRows.length, 2);
 assert.ok(elbowRows.some(row => row.bore === 'DN200×100' && row.isReducing), '异径弯头应显示大径×小径');
 assert.ok(elbowRows.some(row => row.bore === 'DN200' && !row.isReducing), '等径弯头应保持单一规格');
 assert.ok(reducingResult.rows.filter(row => row.category === '管道').every(row => !row.isReducing), '管道不得被标为异径管件');
+
+const quantityResult = parser.parse(`
+-6 QUANTITY-TEST
+45 0 0 0 10000 0 0 200 1 1 2000000 TESW 0 1
+46 10000 0 0 10000 10000 0 100 1 1 2000000 TESW 0 1
+47 10000 0 0 20000 0 0 200 1 1 2000000 TESW 0 1
+101 30000 0 0 36000 0 0 200 2 1 2000000 FPPL 0 1
+100 40000 0 0 46000 0 0 200 3 1 2000000 PIPE 0 1
+-20 TEE-CODE
+-21 TEE DESCRIPTION
+-20 FIXED-PIPE-CODE
+-21 FIXED PIPE DESCRIPTION
+-20 PIPE-CODE
+-21 PIPE DESCRIPTION
+999
+`);
+assert.equal(quantityResult.stats.componentCount, 5, '应保留原始组件记录总数');
+assert.equal(quantityResult.stats.continuationRecordCount, 2, '三通的 46/47 是延续腿记录');
+assert.equal(quantityResult.stats.includedCount, 3, '三通、定长管和普通管道各形成一个材料项');
+const teeQuantity = quantityResult.rows.find(row => row.code === 'TEE-CODE');
+const fixedPipeQuantity = quantityResult.rows.find(row => row.code === 'FIXED-PIPE-CODE');
+const pipeQuantity = quantityResult.rows.find(row => row.code === 'PIPE-CODE');
+assert.equal(teeQuantity.quantity, 1);
+assert.equal(teeQuantity.unit, '件');
+assert.equal(fixedPipeQuantity.quantity, 1, '定长管必须按件计');
+assert.equal(fixedPipeQuantity.unit, '件');
+assert.equal(pipeQuantity.quantity, 0.06, '普通管道应按坐标长度计米');
+assert.equal(pipeQuantity.unit, 'm');
 
 console.log('parser tests passed');

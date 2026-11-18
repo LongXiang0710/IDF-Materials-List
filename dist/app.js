@@ -85,7 +85,7 @@
     const parsed = state.parsed;
     const items = parsed.diagnostics.slice(0, 80);
     els.diagnosticCount.textContent = parsed.diagnostics.length;
-    els.diagnosticContent.innerHTML = `<div>已解析 ${state.files.length} 个文件，识别到 ${parsed.materials.length} 条物料字典记录，口径模式为${parsed.unitMode === 'metric' ? '公制' : parsed.unitMode === 'imperial' ? '英制' : '混合'}。已排除指针为 0 的组件 ${parsed.stats.excludedPointerCount || 0} 项，Millions 位为 1 的组件 ${parsed.stats.excludedBomModeCount || 0} 项；第 14 字段分类代码异常 ${parsed.stats.invalidClassificationCount || 0} 项。</div>` +
+    els.diagnosticContent.innerHTML = `<div>已解析 ${state.files.length} 个文件，识别到 ${parsed.materials.length} 条物料字典记录，口径模式为${parsed.unitMode === 'metric' ? '公制' : parsed.unitMode === 'imperial' ? '英制' : '混合'}。已合并多腿组件的延续记录 ${parsed.stats.continuationRecordCount || 0} 条；排除指针为 0 的组件 ${parsed.stats.excludedPointerCount || 0} 项，Millions 位为 1 的组件 ${parsed.stats.excludedBomModeCount || 0} 项；第 14 字段分类代码异常 ${parsed.stats.invalidClassificationCount || 0} 项。</div>` +
       (items.length ? `<ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>` : '<div>未发现需要人工处理的记录。</div>');
   }
 

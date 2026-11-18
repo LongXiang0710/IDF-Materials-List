@@ -14,6 +14,13 @@
   };
 
   const PIPE_TYPES = new Set([100, 101, 102, 103]);
+  const LENGTH_QUANTITY_TYPES = new Set([100]);
+  // These records are additional legs of the same physical component. Only
+  // the first/in-leg record contributes one BOM quantity.
+  const CONTINUATION_RECORD_TYPES = new Set([
+    31, 36, 41, 42, 46, 47, 51, 52, 53, 61, 62, 71, 72, 76,
+    81, 82, 86, 87, 88, 91, 92, 93, 96, 133, 137
+  ]);
   const NON_FLOW_TYPES = new Set([110, 115, 120, 150, 160, 161]);
 
   let SKEY_DEFINITIONS = root.ISOGEN_SKEY_DEFINITIONS || [];
@@ -34,7 +41,8 @@
     KABW: '对焊管帽', KACP: '压缩式管帽', KASC: '螺纹管帽', KASW: '承插焊管帽', KAFL: '法兰管帽',
     FPFL: '法兰定长管', FPPL: '定长管', FPFA: '扩口定长管', FPCL: '卡箍定长管', FPGL: '胶粘定长管', FPPF: '承插定长管',
     FPSC: '螺纹定长管', FPSW: '承插焊定长管', FPCP: '压缩式定长管', ANCH: '锚固支架', GUID: '导向支架',
-    SPRG: '弹簧支架', HANG: '吊架', DUCK: '鸭脚支座', SKID: '滑动支座', ITFL: '法兰仪表三通'
+    SPRG: '弹簧支架', HANG: '吊架', DUCK: '鸭脚支座', SKID: '滑动支座', ITFL: '法兰仪表三通',
+    LVBW: 'Victaulic 焊接环'
   });
   const END_CONDITION_ZH = Object.freeze({
     BW: '对焊', CP: '压缩式', SW: '承插焊', FL: '法兰', SC: '螺纹', PL: '平口', LN: '衬套螺母式', LC: '衬套卡箍式',
@@ -65,11 +73,60 @@
     return match ? match[0] : '';
   }
 
-  function chineseBaseName(officialName) {
+  function chineseBaseName(officialName, pcfIdentification) {
     const name = officialName.toLowerCase();
+    const pcf = String(pcfIdentification || '').toUpperCase();
     if (/blind flange/.test(name)) return '盲板法兰';
     if (/concentric reducing flange|reducing concentric flange/.test(name)) return '同心异径法兰';
     if (/eccentric reducing flange|reducing eccentric flange/.test(name)) return '偏心异径法兰';
+    if (pcf === 'LAPJOINT-RING') return '活套环';
+    if (pcf === 'LAPJOINT-STUB-END') return '翻边短节';
+    if (pcf === 'ELBOLET') return '弯头支管台';
+    if (pcf === 'OLET') return '支管台';
+    if (pcf === 'NOZZLE') return '管嘴';
+    if (pcf === 'CLAMP') return '卡箍';
+    if (pcf === 'CONNECTOR') return '接头';
+    if (pcf === 'NUT') return '螺母';
+    if (pcf === 'REINFORCEMENTPAD') return '补强板';
+    if (pcf === 'SAFETY-DISC') return '爆破片';
+    if (pcf === 'SUPPORT') return '支吊架';
+    if (pcf === 'UNION') return '活接头';
+    if (pcf === 'CAP') return '管帽';
+    if (pcf === 'COUPLING') return '管箍';
+    if (pcf === 'WELD') return '焊缝';
+    if (pcf.startsWith('PIPE-')) return pcf.includes('BLOCK') ? '管块' : '定长管';
+    if (pcf.startsWith('FILTER')) return '过滤器';
+    if (pcf === 'INSTRUMENT-DIAL') return '仪表盘';
+    if (pcf === 'INSTRUMENT-TEE') return '仪表三通';
+    if (pcf.startsWith('INSTRUMENT')) return '仪表';
+    if (pcf === 'FLANGE-BLIND') return '盲板法兰';
+    if (pcf === 'FLANGE-REDUCING-CONCENTRIC') return '同心异径法兰';
+    if (pcf === 'FLANGE-REDUCING-ECCENTRIC') return '偏心异径法兰';
+    if (pcf === 'FLANGE') return '法兰';
+    if (pcf === 'ELBOW-REDUCING') return '异径弯头';
+    if (pcf.startsWith('ELBOW')) return '弯头';
+    if (pcf.startsWith('BEND')) return '弯管';
+    if (pcf.startsWith('CROSS')) return '四通';
+    if (pcf.startsWith('TEE')) return '三通';
+    if (pcf.startsWith('REDUCER-CONCENTRIC')) return '同心异径管';
+    if (pcf.startsWith('REDUCER-ECCENTRIC')) return '偏心异径管';
+    if (pcf.startsWith('VALVE')) {
+      if (/butterfly valve/.test(name)) return '蝶阀';
+      if (/gate valve/.test(name)) return '闸阀';
+      if (/globe valve/.test(name)) return '截止阀';
+      if (/ball valve/.test(name)) return '球阀';
+      if (/check valve|non-return valve/.test(name)) return '止回阀';
+      if (/diaphragm valve/.test(name)) return '隔膜阀';
+      if (/needle valve/.test(name)) return '针阀';
+      if (/plug valve/.test(name)) return '旋塞阀';
+      if (/control valve/.test(name)) return '调节阀';
+      if (/pressure reducing/.test(name)) return '减压阀';
+      if (/relief|vent valve/.test(name)) return '安全/放空阀';
+      return '阀门';
+    }
+    if (pcf.startsWith('TRAP')) return '疏水器';
+    if (/hose coupling/.test(name)) return '软管接头';
+    if (/connector/.test(name)) return '接头';
     if (/flange/.test(name)) return '法兰';
     if (/butterfly valve/.test(name)) return '蝶阀';
     if (/gate valve/.test(name)) return '闸阀';
@@ -101,10 +158,9 @@
     if (/fixed.*pipe|pipe block/.test(name)) return '定长管';
     if (/pipe/.test(name)) return '管道';
     if (/support weld/.test(name)) return '支架焊缝';
-    if (/weld/.test(name)) return '焊缝';
     if (/trap/.test(name)) return '疏水器';
     if (/nozzle/.test(name)) return '管嘴';
-    if (/olet|half coupling/.test(name)) return '支管座';
+    if (/olet|half coupling/.test(name)) return '支管台';
     if (/union/.test(name)) return '活接头';
     if (/nipple/.test(name)) return '短节';
     if (/plug/.test(name)) return '塞头';
@@ -116,12 +172,13 @@
     if (/expansion bellows/.test(name)) return '膨胀节';
     if (/flexible hose/.test(name)) return '柔性软管';
     if (/sight glass/.test(name)) return '视镜';
+    if (/weld/.test(name)) return '焊缝';
     return '';
   }
 
   function translatedSkeyName(definition, normalized) {
     if (SKEY_ZH_OVERRIDES[definition.skey]) return SKEY_ZH_OVERRIDES[definition.skey];
-    const base = chineseBaseName(definition.name);
+    const base = chineseBaseName(definition.name, definition.pcfIdentification);
     if (!base) return definition.name;
     let condition = '';
     if (definition.skey.includes('**')) condition = END_CONDITION_ZH[normalized.slice(-2)] || '';
@@ -221,6 +278,31 @@
     // pointer, and 7-9 are the repeat-part number.
     if (/^\d{4,}$/.test(text)) return Number(text.slice(-3)) || 0;
     return Math.max(0, firstInteger(text) || 0);
+  }
+
+  function materialGroupKey(row) {
+    return [row.code, row.description, row.bore, row.unit, row.skey, row.pipelineNumber].join('\u0001');
+  }
+
+  function mergeDistinctText(left, right) {
+    const values = [left, right]
+      .flatMap(value => String(value || '').split('、'))
+      .map(value => value.trim())
+      .filter(Boolean);
+    return Array.from(new Set(values)).join('、');
+  }
+
+  function addQuantity(left, right) {
+    return Number(((Number(left) || 0) + (Number(right) || 0)).toFixed(12));
+  }
+
+  function mergeRowMetadata(target, row) {
+    target.componentType = mergeDistinctText(target.componentType, row.componentType);
+    target.category = mergeDistinctText(target.category, row.category);
+    target.classification = mergeDistinctText(target.classification, row.classification);
+    target.skey = mergeDistinctText(target.skey, row.skey);
+    target.pipelineNumber = mergeDistinctText(target.pipelineNumber, row.pipelineNumber);
+    target.componentTypeOfficial = mergeDistinctText(target.componentTypeOfficial, row.componentTypeOfficial);
   }
 
   function formatBore(value, unitMode) {
@@ -379,10 +461,12 @@
     let excludedPointerCount = 0;
     let excludedBomModeCount = 0;
     let invalidClassificationCount = 0;
+    let continuationRecordCount = 0;
     let unlinkedCount = 0;
 
     components.forEach(component => {
       const { words, type, line, pipelineNumber } = component;
+      if (CONTINUATION_RECORD_TYPES.has(type)) { continuationRecordCount++; return; }
       const pointerText = words[8] || '';
       const pointer = parseMaterialPointer(pointerText);
       const flags = decodeFlags(words[10], words[13]);
@@ -394,9 +478,9 @@
         unlinkedCount++;
         diagnostics.push(`第 ${line} 行：${TYPE_NAMES[type]} 的物料指针“${pointerText || '空'}”未找到对应 -20 记录。`);
       }
-      const lengthMm = PIPE_TYPES.has(type) ? pipeLengthMm(words) : NaN;
-      const quantity = PIPE_TYPES.has(type) && Number.isFinite(lengthMm) ? lengthMm / 1000 : 1;
-      const unit = PIPE_TYPES.has(type) && Number.isFinite(lengthMm) ? 'm' : '件';
+      const lengthMm = LENGTH_QUANTITY_TYPES.has(type) ? pipeLengthMm(words) : NaN;
+      const quantity = LENGTH_QUANTITY_TYPES.has(type) && Number.isFinite(lengthMm) ? lengthMm / 1000 : 1;
+      const unit = LENGTH_QUANTITY_TYPES.has(type) && Number.isFinite(lengthMm) ? 'm' : '件';
       const weight = parseNumber(words[9]);
       const skeyInfo = resolveSkey(words[11] || '', type);
       resultRows.push({
@@ -413,15 +497,16 @@
 
     const grouped = new Map();
     resultRows.forEach(row => {
-      const key = [row.code, row.description, row.category, row.bore, row.unit, row.classification, row.componentType, row.pipelineNumber].join('\u0001');
+      const key = materialGroupKey(row);
       if (!grouped.has(key)) grouped.set(key, Object.assign({}, row, { sourceLines: [row.sourceLine], count: 1 }));
       else {
         const target = grouped.get(key);
-        target.quantity += row.quantity;
-        target.weight += row.weight;
+        target.quantity = addQuantity(target.quantity, row.quantity);
+        target.weight = addQuantity(target.weight, row.weight);
         target.hasWeight = target.hasWeight || row.hasWeight;
         target.count++;
         target.sourceLines.push(row.sourceLine);
+        mergeRowMetadata(target, row);
       }
     });
 
@@ -437,7 +522,7 @@
 
     return {
       rows, materials, components, diagnostics, unitMode,
-      stats: { materialRows: rows.length, componentCount: components.length, includedCount: resultRows.length, excludedCount, excludedPointerCount, excludedBomModeCount, invalidClassificationCount, unlinkedCount, pipeLength, totalWeight, hasWeight: resultRows.some(r => r.hasWeight) }
+      stats: { materialRows: rows.length, componentCount: components.length, includedCount: resultRows.length, continuationRecordCount, excludedCount, excludedPointerCount, excludedBomModeCount, invalidClassificationCount, unlinkedCount, pipeLength, totalWeight, hasWeight: resultRows.some(r => r.hasWeight) }
     };
   }
 
@@ -458,7 +543,7 @@
       diagnostics.push(...parsed.diagnostics.map(message => `${fileName}：${message}`));
 
       parsed.rows.forEach(row => {
-        const key = [row.code, row.description, row.category, row.bore, row.unit, row.classification, row.componentType, row.pipelineNumber].join('\u0001');
+        const key = materialGroupKey(row);
         if (!grouped.has(key)) {
           grouped.set(key, Object.assign({}, row, {
             sourceFiles: [fileName],
@@ -467,12 +552,13 @@
           }));
         } else {
           const target = grouped.get(key);
-          target.quantity += row.quantity;
-          target.weight += row.weight;
+          target.quantity = addQuantity(target.quantity, row.quantity);
+          target.weight = addQuantity(target.weight, row.weight);
           target.hasWeight = target.hasWeight || row.hasWeight;
           target.count = (target.count || 1) + (row.count || 1);
           if (!target.sourceFiles.includes(fileName)) target.sourceFiles.push(fileName);
           target.sourceReferences.push(...(row.sourceLines || [row.sourceLine]).map(line => `${fileName}:${line}`));
+          mergeRowMetadata(target, row);
         }
       });
     });
@@ -490,6 +576,7 @@
         materialRows: rows.length,
         componentCount: summed('componentCount'),
         includedCount: summed('includedCount'),
+        continuationRecordCount: summed('continuationRecordCount'),
         excludedCount: summed('excludedCount'),
         excludedPointerCount: summed('excludedPointerCount'),
         excludedBomModeCount: summed('excludedBomModeCount'),
@@ -502,6 +589,6 @@
     };
   }
 
-  root.IDFParser = { parse, mergeParsedResults, tokenize, TYPE_NAMES, categoryFor, pipeLengthMm, inferConnectedBores, reducingBoreLabel, decodeFlags, parseMaterialPointer, overflowValue, normalizeSkey, resolveSkey, skeyMatchesIdfRecord };
+  root.IDFParser = { parse, mergeParsedResults, materialGroupKey, mergeDistinctText, addQuantity, tokenize, TYPE_NAMES, categoryFor, pipeLengthMm, inferConnectedBores, reducingBoreLabel, decodeFlags, parseMaterialPointer, overflowValue, normalizeSkey, resolveSkey, skeyMatchesIdfRecord, CONTINUATION_RECORD_TYPES, LENGTH_QUANTITY_TYPES };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.IDFParser;
 })(typeof window !== 'undefined' ? window : globalThis);
