@@ -197,4 +197,26 @@ assert.equal(fixedPipeQuantity.unit, '件');
 assert.equal(pipeQuantity.quantity, 0.06, '普通管道应按坐标长度计米');
 assert.equal(pipeQuantity.unit, 'm');
 
+const skswQuantityResult = parser.parse(`
+-6 SKSW-COUNT-TEST
+40 0 0 0 0 0 0 200 2, , 2000000 , , 9000 1
+41 0 0 0 10000 0 0 40 1, , 2000000 ,SKSW, 9000 1
+42 0 0 0 0 0 0 200 2, , 2000000 , , 9000 1
+40 20000 0 0 20000 0 0 200 2, , 2000000 , , 9000 1
+41 20000 0 0 30000 0 0 40 1, , 2000000 ,SKSW, 9000 1
+42 20000 0 0 20000 0 0 200 2, , 2000000 , , 9000 1
+40 40000 0 0 50000 0 0 40 1, , 2000000 ,SKSW, 9000 1
+41 50000 0 0 50000 0 0 200 2, , 2000000 , , 9000 1
+42 50000 0 0 50000 0 0 200 2, , 2000000 , , 9000 1
+-20 SKSW-MATERIAL
+-21 SOCKET WELD OLET
+-20 PIPE-MATERIAL
+-21 PIPE
+999
+`);
+const skswQuantityRows = skswQuantityResult.rows.filter(row => row.skey === 'SKSW');
+assert.equal(skswQuantityRows.length, 1, '相同管线、规格和材料的 SKSW 应汇总为一行');
+assert.equal(skswQuantityRows[0].quantity, 3, 'SKSW 位于 40 或 41 记录时都必须正确计数');
+assert.equal(skswQuantityResult.rows.some(row => row.skey === '' && row.componentType === '支管座'), false, '不得把 Olet 的空 SKEY 腿误计为材料');
+
 console.log('parser tests passed');

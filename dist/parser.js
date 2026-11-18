@@ -73,6 +73,16 @@
     return match ? match[0] : '';
   }
 
+  function isContinuationComponent(component) {
+    const { type, words } = component;
+    // Olet records 40/41 describe different legs. In real IDF files the BOM
+    // component (for example SKSW) may be carried by either record, while the
+    // other leg has an empty SKEY. Count the SKEY-bearing record and ignore
+    // only the empty leg; record 42 remains a continuation record.
+    if (type === 40 || type === 41) return !normalizeSkey(words[11]);
+    return CONTINUATION_RECORD_TYPES.has(type);
+  }
+
   function chineseBaseName(officialName, pcfIdentification) {
     const name = officialName.toLowerCase();
     const pcf = String(pcfIdentification || '').toUpperCase();
@@ -466,7 +476,7 @@
 
     components.forEach(component => {
       const { words, type, line, pipelineNumber } = component;
-      if (CONTINUATION_RECORD_TYPES.has(type)) { continuationRecordCount++; return; }
+      if (isContinuationComponent(component)) { continuationRecordCount++; return; }
       const pointerText = words[8] || '';
       const pointer = parseMaterialPointer(pointerText);
       const flags = decodeFlags(words[10], words[13]);
@@ -589,6 +599,6 @@
     };
   }
 
-  root.IDFParser = { parse, mergeParsedResults, materialGroupKey, mergeDistinctText, addQuantity, tokenize, TYPE_NAMES, categoryFor, pipeLengthMm, inferConnectedBores, reducingBoreLabel, decodeFlags, parseMaterialPointer, overflowValue, normalizeSkey, resolveSkey, skeyMatchesIdfRecord, CONTINUATION_RECORD_TYPES, LENGTH_QUANTITY_TYPES };
+  root.IDFParser = { parse, mergeParsedResults, materialGroupKey, mergeDistinctText, addQuantity, tokenize, TYPE_NAMES, categoryFor, pipeLengthMm, inferConnectedBores, reducingBoreLabel, decodeFlags, parseMaterialPointer, overflowValue, normalizeSkey, resolveSkey, skeyMatchesIdfRecord, isContinuationComponent, CONTINUATION_RECORD_TYPES, LENGTH_QUANTITY_TYPES };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.IDFParser;
 })(typeof window !== 'undefined' ? window : globalThis);
