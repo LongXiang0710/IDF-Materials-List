@@ -1,10 +1,6 @@
-# Local previews and generated scratch files
-tmp/
+# Generated export files
 outputs/
 site-source/
-
-# Local Sites deployment identity
-.openai/
 
 # Common editor and OS artifacts
 .DS_Store
